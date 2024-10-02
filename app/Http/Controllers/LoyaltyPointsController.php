@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Mail\LoyaltyPointsReceived;
 use App\Models\LoyaltyAccount;
 use App\Models\LoyaltyPointsTransaction;
+use http\Env\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -54,23 +55,30 @@ class LoyaltyPointsController extends Controller
         return response()->json($transaction);
     }
 
-    public function cancel()
+    public function cancel(Request $request)
     {
-        $data = $_POST;
+        $validated = $request->validate([
+            'transaction_id' => 'required|integer|exists:loyalty_points_transactions,id',
+            'cancellation_reason' => 'required|string|max:255',
+        ]);
 
-        $reason = $data['cancellation_reason'];
+        $transaction = LoyaltyPointsTransaction::where('id', $validated['transaction_id'])
+            ->where('canceled', 0)
+            ->first();
 
-        if ($reason == '') {
-            return response()->json(['message' => 'Cancellation reason is not specified'], 400);
+        if (!$transaction) {
+            Log::warning('Transaction not found or already canceled', ['transaction_id' => $validated['transaction_id']]);
+            return response()->json(['message' => 'Transaction is not found or already canceled'], 400);
         }
 
-        if ($transaction = LoyaltyPointsTransaction::where('id', '=', $data['transaction_id'])->where('canceled', '=', 0)->first()) {
-            $transaction->canceled = time();
-            $transaction->cancellation_reason = $reason;
-            $transaction->save();
-        } else {
-            return response()->json(['message' => 'Transaction is not found'], 400);
-        }
+        $transaction->update([
+            'canceled' => now(),
+            'cancellation_reason' => $validated['cancellation_reason'],
+        ]);
+
+        Log::info('Transaction canceled successfully', ['transaction_id' => $transaction->id]);
+
+        return response()->json(['message' => 'Transaction canceled successfully']);
     }
 
     public function withdraw()
