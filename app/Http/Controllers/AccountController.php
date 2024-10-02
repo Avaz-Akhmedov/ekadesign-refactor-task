@@ -52,15 +52,20 @@ class AccountController extends Controller
 
     public function balance($type, $id)
     {
-        if (($type == 'phone' || $type == 'card' || $type == 'email') && $id != '') {
-            if ($account = LoyaltyAccount::where($type, '=', $id)->first()) {
-                return response()->json(['balance' => $account->getBalance()], 400);
 
-            } else {
-                return response()->json(['message' => 'Account is not found'], 400);
-            }
-        } else {
-            throw new \InvalidArgumentException('Wrong parameters');
+        $validTypes = ['phone', 'card', 'email'];
+
+        if (!in_array($type, $validTypes) || empty($id)) {
+            throw ValidationException::withMessages(['message' => 'Invalid account type or ID']);
         }
+
+        $account = LoyaltyAccount::query()->where($type, $id)->first();
+
+        if (!$account) {
+            return response()->json(['message' => 'Account not found'], 404);
+        }
+
+        return response()->json(['balance' => $account->getBalance()], 200);
+
     }
 }
